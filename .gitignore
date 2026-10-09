@@ -1,0 +1,16 @@
+# Geliştirici ve Yapay Zeka Klasörleri
+.agents/
+.ai/
+.pm/
+scratch/
+__pycache__/
+
+# Belgeler ve Eski Notlar
+eskimdler/
+docs/
+*sorunlar*
+*ssleri*
+*.log
+
+# Yerel Çalıştırma Scriptleri
+oyna.bat

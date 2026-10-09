@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Web Oyunu - Ayrıntılı Ev & Kamera Gezgini</title>
+  <meta name="description" content="Three.js ile geliştirilmiş, ayrıntılı 3D ev modeli ve serbest kamera kontrolleri içeren 3D web oyunu prototipi.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="style.css?v=80">
+
+  <!-- Three.js Import Map -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+      "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- 3D Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Reticle / Crosshair for Free Roam -->
+  <div id="crosshair" class="crosshair hidden"></div>
+
+  <!-- Drag and Drop Overlay for Custom Models -->
+  <div id="drag-overlay" class="drag-overlay hidden">
+    <div class="drag-icon">📦</div>
+    <div class="drag-text">3D Modeli Buraya Bırakın</div>
+    <div class="drag-sub">.GLB veya .GLTF dosyası otomatik yüklenecektir</div>
+  </div>
+
+  <!-- Hidden File Input for Custom Models -->
+  <input type="file" id="model-file-input" accept=".glb,.gltf" style="display: none;">
+
+  <!-- Otantik GTA San Andreas Loading & Splash Screen -->
+  <div id="loading-overlay" class="loading-overlay gta-splash-screen">
+    <!-- Arka Plan Sanat Kartları Slaytı -->
+    <div class="gta-splash-bg-container">
+      <div class="gta-splash-art active" id="splash-art-1" style="background-image: url('assets/gta/splash_art1.jpg');"></div>
+      <div class="gta-splash-art" id="splash-art-2" style="background-image: url('assets/gta/splash_art2.jpg');"></div>
+      <div class="gta-splash-vignette"></div>
+      <div class="gta-splash-scanlines"></div>
+    </div>
+
+    <!-- Alt GTA Bilgi ve İlerleme Paneli -->
+    <div class="gta-splash-bottom-bar">
+      <div class="gta-splash-badge">
+        <span class="gta-rockstar-star">★</span>
+        <span class="gta-edition-text">SAN ANDREAS WEB EDITION</span>
+      </div>
+
+      <div class="gta-splash-status-row">
+        <div class="gta-status-text" id="loading-status">Grove Street ve Şehir Yolları Yükleniyor...</div>
+        <div class="gta-status-percent" id="loading-percent">0%</div>
+      </div>
+
+      <!-- Çizgili Retro Progress Bar -->
+      <div class="gta-progress-container" id="gta-progress-container">
+        <div class="gta-progress-track">
+          <div class="gta-progress-fill" id="progress-bar"></div>
+        </div>
+      </div>
+
+      <!-- Yükleme Tamamlandığında Çıkan OYUNA BAŞLA Butonu -->
+      <div class="gta-start-container hidden" id="gta-start-container">
+        <button class="gta-btn-start" id="btn-start-game" type="button">
+          <span class="gta-btn-icon">▶</span>
+          <span class="gta-btn-text">OYUNA BAŞLA</span>
+          <span class="gta-btn-sub">SES VE DÜNYAYI BAŞLATMAK İÇİN TIKLAYIN</span>
+        </button>
+      </div>
+
+      <div class="gta-splash-hints" id="gta-splash-hints">
+        İpucu: Farming Simulator tarzı <kbd>Tab</kbd> tuşu ile araçlara anında ışınlanabilir ve geçiş yapabilirsiniz.
+      </div>
+    </div>
+  </div>
+
+  <!-- UI Overlay -->
+  <div class="ui-overlay">
+    <!-- Top-Left: Minimal GTA FPS Badge (Sadeleştirilmiş) -->
+    <div class="gta-quick-bar">
+      <div class="gta-fps-badge" title="Performans (FPS | Draw Call | Üçgen | GPU)">
+        <span id="stat-fps">60</span> FPS &nbsp;|&nbsp; <span style="opacity:0.85">DC:</span> <span id="stat-drawcalls" style="color:#4ade80">0</span> &nbsp;|&nbsp; <span style="opacity:0.85">▲</span> <span id="stat-triangles" style="color:#facc15">0</span> &nbsp;|&nbsp; <span id="stat-gpu" style="color:#38bdf8; font-weight:700" title="Aktif GPU Donanımı">GPU</span>
+      </div>
+    </div>
+
+    <!-- Top-Right: Authentic GTA HUD (Weapon, Health/Armor, Clock, Wanted, Money) -->
+    <div class="gta-hud" id="gta-hud">
+      <!-- Time & Wanted Stars -->
+      <div class="gta-top-row">
+        <div class="gta-stars" id="gta-stars">
+          <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
+        </div>
+        <div class="gta-clock" id="gta-clock">12:00</div>
+      </div>
+
+      <!-- Main Status: Weapon & Bars -->
+      <div class="gta-status-row">
+        <!-- Weapon / Fist Box -->
+        <div class="gta-weapon-card" id="gta-weapon" title="Kuşanılan Silah / Yumruk">
+          <div class="weapon-icon" id="weapon-icon">🔫</div>
+          <div class="weapon-ammo" id="weapon-ammo">999</div>
+        </div>
+
+        <!-- Bars Column -->
+        <div class="gta-bars">
+          <!-- Armor Bar -->
+          <div class="gta-bar-wrap armor-wrap" title="Zırh">
+            <div class="gta-bar armor-bar" id="gta-armor-fill" style="width: 100%;"></div>
+          </div>
+          <!-- Health Bar -->
+          <div class="gta-bar-wrap health-wrap" title="Can">
+            <div class="gta-bar health-bar" id="gta-health-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Money Counter (Classic GTA Green) -->
+      <div class="gta-money" id="gta-money">$00350420</div>
+    </div>
+
+    <!-- Bottom-Left: Authentic GTA Mini-Map Radar & Neighborhood Tag -->
+    <div class="gta-radar-container" id="gta-radar-container">
+      <div class="gta-radar-disc">
+        <canvas id="gta-radar-canvas" width="156" height="156"></canvas>
+        <div class="radar-north font-mono">N</div>
+        <!-- Center Rotating Player Blip -->
+        <div class="player-blip" id="radar-player-blip">▲</div>
+      </div>
+      <div class="gta-location-tag">
+        <div class="gta-location-name">GROVE STREET</div>
+        <div class="gta-location-sub">Ganton, Los Santos</div>
+      </div>
+    </div>
+
+    <!-- Vehicle Interaction Prompt (F Tuşu İle Bin) -->
+    <div id="vehicle-prompt" class="vehicle-prompt hidden">
+      <div class="prompt-key">F</div>
+      <div class="prompt-info">
+        <div class="prompt-action">Araca Bin</div>
+        <div class="prompt-sub" id="prompt-vehicle-name">Executive Sedan</div>
+      </div>
+    </div>
+
+    <!-- Vehicle Speedometer HUD (Alt-Sağ Hız & Vites Göstergesi) -->
+    <div id="gta-speedo" class="gta-speedo hidden">
+      <div class="speedo-header">
+        <span class="speedo-car-name" id="speedo-veh-name">EXECUTIVE SEDAN</span>
+        <span class="speedo-gear" id="speedo-gear">1</span>
+      </div>
+      <div class="speedo-main">
+        <span class="speedo-val" id="speedo-val">0</span>
+        <span class="speedo-unit">KM/H</span>
+      </div>
+      <div class="speedo-rpm-track">
+        <div class="speedo-rpm-fill" id="speedo-rpm-fill"></div>
+      </div>
+      <div class="speedo-status-row">
+        <span class="speedo-badge" id="ind-drift">DRIFT</span>
+        <span class="speedo-badge" id="ind-brake">FREN</span>
+      </div>
+      <div class="speedo-controls-hint">
+        <span><kbd>W</kbd><kbd>S</kbd> Gaz/Fren</span>
+        <span><kbd>Boşluk</kbd> El Freni</span>
+        <span><kbd>H</kbd> Korna</span>
+        <span><kbd>R</kbd> Düzelt</span>
+        <span><kbd>F</kbd> İn</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Local Launch / Offline Helper (Shown if on file:// protocol or error) -->
+  <div id="local-helper" class="local-helper-badge glass-panel hidden">
+    <div class="local-helper-header">
+      <span>💡 Lokal Başlatıcı İpucu</span>
+      <button class="helper-close" id="btn-close-helper" title="Kapat">&times;</button>
+    </div>
+    <div class="local-helper-text">
+      Eğer tarayıcınız yerel model dosyalarına erişimi engellerse, proje klasöründeki <strong>oyna.bat</strong> dosyasına çift tıklayarak oyunu tek tıkla tam özellikli açabilirsiniz.
+    </div>
+    <div class="local-helper-actions">
+      <button class="helper-btn primary" id="btn-connect-localhost">🌐 Yerel Sunucu (Port 3000)</button>
+      <button class="helper-btn" id="btn-helper-pick">📁 Model Seç</button>
+    </div>
+  </div>
+
+  <!-- ADIM 13: Sinematik Letterbox & Görev HUD Katmanı -->
+  <div id="cinematic-letterbox-top" class="cinematic-letterbox-bar"></div>
+  <div id="cinematic-letterbox-bottom" class="cinematic-letterbox-bar"></div>
+
+  <!-- Telefon Kulübesi Etkileşim İpucu -->
+  <div id="phone-prompt" class="phone-prompt hidden">
+    <div class="phone-prompt-key">E</div>
+    <div class="phone-prompt-text">TELEFONA CEVAP VER</div>
+  </div>
+
+  <!-- Otantik GTA San Andreas Altyazı Kutusu -->
+  <div id="mission-subtitles" class="mission-subtitles hidden">
+    <div id="mission-sub-speaker" class="mission-sub-speaker">SWEET</div>
+    <div id="mission-sub-text" class="mission-sub-text">CJ, Big Smoke ile buluşup aç karnımızı doyurmamız lazım!</div>
+  </div>
+
+  <!-- Görev Yönerge Şeridi -->
+  <div id="mission-objective-banner" class="mission-objective-banner hidden">
+    <span id="mission-objective-text">Idlewood'daki Cluckin' Bell restoranına sür!</span>
+  </div>
+
+  <!-- Görev Başlık Pop-up -->
+  <div id="mission-title-banner" class="mission-title-banner">DRIVE-THRU</div>
+
+  <!-- MISSION PASSED! Zafer Ekranı -->
+  <div id="mission-passed-overlay" class="mission-passed-overlay">
+    <div class="mission-passed-title">MISSION PASSED!</div>
+    <div id="mission-reward-counter" class="mission-reward-counter">+$1,000</div>
+    <div class="mission-respect-badge">RESPECT +</div>
+  </div>
+
+  <!-- MISSION FAILED Ekranı -->
+  <div id="mission-failed-overlay" class="mission-failed-overlay">
+    <div class="mission-failed-title">MISSION FAILED</div>
+    <div id="mission-failed-reason" class="mission-failed-reason">Araç imha edildi!</div>
+  </div>
+
+  <!-- Application Scripts -->
+  <script type="module" src="js/main.js?v=88"></script>
+</body>
+</html>
